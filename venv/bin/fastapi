@@ -1,4 +1,4 @@
-#!/home/amir/Desktop/fastapi/FastAPI/venv/bin/python3
+#!/home/amir/Desktop/fastapi/FastAPI/venv/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys

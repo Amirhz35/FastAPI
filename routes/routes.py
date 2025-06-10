@@ -1,4 +1,5 @@
 from fastapi import APIRouter,Depends,HTTPException,status
+from fastapi.responses import RedirectResponse
 from typing import Annotated
 
 from schemas.schemas import *
@@ -24,7 +25,7 @@ async def post_urls(create_instance:URL_Create, db:db_dependency):
         db.commit()
         db.refresh(db_urls)
         result = db.query(models.URL).filter(models.URL.original_url==request_url).first()
-        url_with_domain = f"https://127.0.0.1:8000/{result.short_url}"
+        url_with_domain = f"http://127.0.0.1:8000/{result.short_url}"
         return {
             "original_url": result.original_url,
             "short_url": url_with_domain
@@ -36,11 +37,20 @@ async def post_urls(create_instance:URL_Create, db:db_dependency):
 async def get_urls(db:db_dependency,original_url:str):
     try:
         result = db.query(models.URL).filter(models.URL.original_url==original_url).first()
-        url_with_domain = f"https://127.0.0.1:8000/{result.short_url}"
+        url_with_domain = f"http://127.0.0.1:8000/{result.short_url}"
         return {
             "original_url": result.original_url,
             "short_url": url_with_domain
         }
+    except HTTPException:
+        raise HTTPException(status_code=400,detail="something went wrong")
+    
+
+@router.get('/{short_url}')
+async def redirect_url(db:db_dependency,short_url:str):
+    try:
+        result = db.query(models.URL).filter(models.URL.short_url==short_url).first()
+        return RedirectResponse(result.original_url)
     except HTTPException:
         raise HTTPException(status_code=400,detail="something went wrong")
 
