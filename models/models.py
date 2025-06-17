@@ -11,3 +11,13 @@ class URL(Base):
     short_url = Column(String)
 
     
+
+class UserModel(Base):
+    __tablename__ = "CustomUser"
+
+    id = Column(Integer,primary_key=True,index=True)
+    username = Column(String)
+    password = Column(String)
+    email = Column(String)
+
+

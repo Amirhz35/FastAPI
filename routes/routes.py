@@ -1,19 +1,21 @@
 from fastapi import APIRouter,Depends,HTTPException,status
 from fastapi.responses import RedirectResponse
 from typing import Annotated
-
+from fastapi.security import OAuth2PasswordRequestForm
 from schemas.schemas import *
 from models import models
 from sqlalchemy.orm import Session
 from database import *
 
 from services.url_logics import *
+from services.utils import *
+from services.deps import *
 
 router = APIRouter()
 
 
 @router.post('/post-urls')
-async def post_urls(create_instance:URL_Create, db:db_dependency):
+async def post_urls(create_instance:URL_Create, db:db_dependency,user: User_login = Depends(get_current_user)):
     try:
         request_url = create_instance.request_url
         shorturl = url_logic(request_url)
@@ -34,7 +36,7 @@ async def post_urls(create_instance:URL_Create, db:db_dependency):
         raise HTTPException(status_code=400,detail="something went wrong")
 
 @router.get('/get-urls')
-async def get_urls(db:db_dependency,original_url:str):
+async def get_urls(db:db_dependency,original_url:str,user: User_login = Depends(get_current_user)):
     try:
         result = db.query(models.URL).filter(models.URL.original_url==original_url).first()
         url_with_domain = f"http://127.0.0.1:8000/{result.short_url}"
@@ -46,11 +48,53 @@ async def get_urls(db:db_dependency,original_url:str):
         raise HTTPException(status_code=400,detail="something went wrong")
     
 
-@router.get('/{short_url}')
+@router.get('/s/{short_url}')
 async def redirect_url(db:db_dependency,short_url:str):
     try:
         result = db.query(models.URL).filter(models.URL.short_url==short_url).first()
         return RedirectResponse(result.original_url)
     except HTTPException:
         raise HTTPException(status_code=400,detail="something went wrong")
+
+
+
+
+@router.post('/register')
+async def register_user(db:db_dependency,user_instance:User_register):
+    if db.query(models.UserModel).filter(models.UserModel.username==user_instance.username).first():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="username already exist")
+    db_user = models.UserModel(username=user_instance.username,
+                                password=get_hashed_password(user_instance.password),
+                                email=user_instance.email)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return {f"user {db_user.username} created successfully"}
+
+
+'''
+@router.post('/login')
+async def login_user(db:db_dependency,user_instance:User_login):
+    try:
+        query = db.query(models.UserModel).filter(models.UserModel.username==user_instance.username).first()
+        if query.password == user_instance.password:
+            return {"login successfull"}
+        return {"invalid username/password"}
+    except:
+        return {"invalid username/password"}'''
+
+@router.post('/login')
+async def login(db:db_dependency, form_data: OAuth2PasswordRequestForm = Depends()):
+    query = db.query(models.UserModel).filter(models.UserModel.username==form_data.username).first()
+    if query is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="invalid username/password")
+    hashed_pass = query.password
+    if not verify_password(form_data.password,hashed_pass):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="invalid username/password")
+
+    return{
+        "access_token": create_access_token(query.username),
+        "refresh_token": create_refresh_token(query.username),
+    }
+
 
