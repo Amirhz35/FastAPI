@@ -15,14 +15,15 @@ router = APIRouter()
 
 
 @router.post('/post-urls')
-async def post_urls(create_instance:URL_Create, db:db_dependency,user: User_login = Depends(get_current_user)):
+async def post_urls(create_instance:URL_Create, db:db_dependency,current_user: models.UserModel = Depends(get_current_user)):
     try:
         request_url = create_instance.request_url
         shorturl = url_logic(request_url)
         URL_Read.short_url = shorturl
         URL_Read.original_url = request_url
         db_urls = models.URL(original_url=URL_Read.original_url,
-                             short_url=URL_Read.short_url)
+                             short_url=URL_Read.short_url,
+                             user_id=current_user.id)
         db.add(db_urls)
         db.commit()
         db.refresh(db_urls)
@@ -30,13 +31,16 @@ async def post_urls(create_instance:URL_Create, db:db_dependency,user: User_logi
         url_with_domain = f"http://127.0.0.1:8000/{result.short_url}"
         return {
             "original_url": result.original_url,
-            "short_url": url_with_domain
+            "short_url": url_with_domain,
+            "user_id": result.user_id
         }
     except HTTPException:
         raise HTTPException(status_code=400,detail="something went wrong")
+    
 
-@router.get('/get-urls')
-async def get_urls(db:db_dependency,original_url:str,user: User_login = Depends(get_current_user)):
+
+@router.get('/get-short-urls')
+async def get_short_urls(db:db_dependency,original_url:str,current_user: User_login = Depends(get_current_user)):
     try:
         result = db.query(models.URL).filter(models.URL.original_url==original_url).first()
         url_with_domain = f"http://127.0.0.1:8000/{result.short_url}"
@@ -47,6 +51,17 @@ async def get_urls(db:db_dependency,original_url:str,user: User_login = Depends(
     except HTTPException:
         raise HTTPException(status_code=400,detail="something went wrong")
     
+
+
+@router.get('/get-urls')
+async def get_urls(db:db_dependency,current_user:User_login=Depends(get_current_user)):
+    try:
+        result = db.query(models.URL).filter(models.URL.user_id==current_user.id).all()
+        return result
+    except HTTPException:
+        raise HTTPException(status_code=400,detail="something went wrong")
+
+
 
 @router.get('/s/{short_url}')
 async def redirect_url(db:db_dependency,short_url:str):
@@ -72,16 +87,7 @@ async def register_user(db:db_dependency,user_instance:User_register):
     return {f"user {db_user.username} created successfully"}
 
 
-'''
-@router.post('/login')
-async def login_user(db:db_dependency,user_instance:User_login):
-    try:
-        query = db.query(models.UserModel).filter(models.UserModel.username==user_instance.username).first()
-        if query.password == user_instance.password:
-            return {"login successfull"}
-        return {"invalid username/password"}
-    except:
-        return {"invalid username/password"}'''
+
 
 @router.post('/login')
 async def login(db:db_dependency, form_data: OAuth2PasswordRequestForm = Depends()):

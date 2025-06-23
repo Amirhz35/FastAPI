@@ -1,16 +1,7 @@
-from sqlalchemy import Boolean,Column,String,Integer
+from sqlalchemy import Boolean,Column,String,Integer,ForeignKey
 
 from database import Base
 
-
-class URL(Base):
-    __tablename__ = "URL"
-
-    id = Column(Integer,primary_key=True,index=True)
-    original_url = Column(String)
-    short_url = Column(String)
-
-    
 
 class UserModel(Base):
     __tablename__ = "CustomUser"
@@ -20,4 +11,14 @@ class UserModel(Base):
     password = Column(String)
     email = Column(String)
 
+
+
+class URL(Base):
+    __tablename__ = "URL"
+
+    id = Column(Integer,primary_key=True,index=True)
+    original_url = Column(String)
+    short_url = Column(String)
+    user_id = Column(Integer,ForeignKey("CustomUser.id"))
+    
 
