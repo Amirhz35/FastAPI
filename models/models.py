@@ -20,5 +20,4 @@ class URL(Base):
     original_url = Column(String)
     short_url = Column(String)
     user_id = Column(Integer,ForeignKey("CustomUser.id"))
-    
-
+    count = Column(Integer, default=0)

@@ -30,23 +30,26 @@ async def post_urls(create_instance:URL_Create, db:db_dependency,current_user: m
         result = db.query(models.URL).filter(models.URL.original_url==request_url).first()
         url_with_domain = f"http://127.0.0.1:8000/{result.short_url}"
         return {
+            "user_id": result.user_id,
             "original_url": result.original_url,
             "short_url": url_with_domain,
-            "user_id": result.user_id
+            "count": result.count
         }
     except HTTPException:
         raise HTTPException(status_code=400,detail="something went wrong")
     
 
 
-@router.get('/get-short-urls')
-async def get_short_urls(db:db_dependency,original_url:str,current_user: User_login = Depends(get_current_user)):
+@router.get('/get-short-url')
+async def get_short_url(db:db_dependency,original_url:str,current_user: User_login = Depends(get_current_user)):
     try:
         result = db.query(models.URL).filter(models.URL.original_url==original_url).first()
         url_with_domain = f"http://127.0.0.1:8000/{result.short_url}"
         return {
+            "user_id": result.user_id,
             "original_url": result.original_url,
-            "short_url": url_with_domain
+            "short_url": url_with_domain,
+            "count": result.count
         }
     except HTTPException:
         raise HTTPException(status_code=400,detail="something went wrong")
@@ -67,6 +70,9 @@ async def get_urls(db:db_dependency,current_user:User_login=Depends(get_current_
 async def redirect_url(db:db_dependency,short_url:str):
     try:
         result = db.query(models.URL).filter(models.URL.short_url==short_url).first()
+        result.count += 1
+        db.commit()
+        db.refresh(result)
         return RedirectResponse(result.original_url)
     except HTTPException:
         raise HTTPException(status_code=400,detail="something went wrong")
