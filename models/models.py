@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean,Column,String,Integer,ForeignKey
+from sqlalchemy import Boolean,Column,String,Integer,ForeignKey,DateTime
 
 from database import Base
 
@@ -21,3 +21,5 @@ class URL(Base):
     short_url = Column(String)
     user_id = Column(Integer,ForeignKey("CustomUser.id"))
     count = Column(Integer, default=0)
+    is_active = Column(Boolean,default=True)
+    expire_time = Column(DateTime(timezone=True), nullable=True)

@@ -1,4 +1,4 @@
-from fastapi import APIRouter,Depends,HTTPException,status
+from fastapi import APIRouter,Depends,HTTPException,status,Body
 from fastapi.responses import RedirectResponse
 from typing import Annotated
 from fastapi.security import OAuth2PasswordRequestForm
@@ -6,7 +6,7 @@ from schemas.schemas import *
 from models import models
 from sqlalchemy.orm import Session
 from database import *
-
+from datetime import datetime, timezone
 from services.url_logics import *
 from services.utils import *
 from services.deps import *
@@ -33,7 +33,9 @@ async def post_urls(create_instance:URL_Create, db:db_dependency,current_user: m
             "user_id": result.user_id,
             "original_url": result.original_url,
             "short_url": url_with_domain,
-            "count": result.count
+            "count": result.count,
+            "is_active": result.is_active,
+            "expire_time": result.expire_time
         }
     except HTTPException:
         raise HTTPException(status_code=400,detail="something went wrong")
@@ -49,7 +51,9 @@ async def get_short_url(db:db_dependency,original_url:str,current_user: User_log
             "user_id": result.user_id,
             "original_url": result.original_url,
             "short_url": url_with_domain,
-            "count": result.count
+            "count": result.count,
+            "is_active": result.is_active,
+            "expire_time": result.expire_time
         }
     except HTTPException:
         raise HTTPException(status_code=400,detail="something went wrong")
@@ -70,6 +74,14 @@ async def get_urls(db:db_dependency,current_user:User_login=Depends(get_current_
 async def redirect_url(db:db_dependency,short_url:str):
     try:
         result = db.query(models.URL).filter(models.URL.short_url==short_url).first()
+        time_now = datetime.now(timezone.utc)
+        expire_time = result.expire_time
+        if expire_time is not None:
+            if expire_time < time_now:
+                result.is_active = False
+                db.commit()
+                db.refresh(result)
+                return {"error":"time has been expired"}
         result.count += 1
         db.commit()
         db.refresh(result)
@@ -110,3 +122,20 @@ async def login(db:db_dependency, form_data: OAuth2PasswordRequestForm = Depends
     }
 
 
+
+
+@router.post('/expire')
+async def set_expire_time(db: db_dependency, original_url:str, time_instance: Expire_Time = Body(description="pls write the time u want ur short link been expired"), current_user: models.UserModel = Depends(get_current_user)):
+    expire_time = time_instance.expire_time
+    query = db.query(models.URL).filter(models.URL.user_id==current_user.id,models.URL.original_url==original_url).first()
+    query.expire_time = expire_time
+    db.commit()
+    db.refresh(query)
+    time_now = datetime.now(timezone.utc)
+    expire_time = query.expire_time
+    if expire_time is not None:
+        if expire_time > time_now:
+            query.is_active = True
+            db.commit()
+            db.refresh(query)
+    return query
