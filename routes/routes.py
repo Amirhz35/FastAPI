@@ -11,35 +11,42 @@ from services.url_logics import *
 from services.utils import *
 from services.deps import *
 
+
+
 router = APIRouter()
 
 
+
 @router.post('/post-urls')
-async def post_urls(create_instance:URL_Create, db:db_dependency,current_user: models.UserModel = Depends(get_current_user)):
+async def post_urls(db:db_dependency, create_instance:URL_Create | None = None,current_user: models.UserModel = Depends(get_current_user)):
     try:
+        short_url = create_instance.short_url
         request_url = create_instance.request_url
-        shorturl = url_logic(request_url)
-        URL_Read.short_url = shorturl
-        URL_Read.original_url = request_url
-        db_urls = models.URL(original_url=URL_Read.original_url,
-                             short_url=URL_Read.short_url,
-                             user_id=current_user.id)
-        db.add(db_urls)
+        expire_time = create_instance.expire_time
+
+        if short_url is None:
+            short_url = url_logic(request_url)
+        if db.query(models.URL).filter(models.URL.short_url==short_url).first():
+            return {"short url already exist"}
+        if not short_url.isalnum():
+            return {"error":"short url is not valid","msg":"valid characters: (a-z)(A-Z)(0-9)"}
+        
+        query = models.URL(
+            user_id = current_user.id,
+            original_url = request_url,
+            short_url = short_url,
+            expire_time = expire_time
+        )
+        db.add(query)
         db.commit()
-        db.refresh(db_urls)
-        result = db.query(models.URL).filter(models.URL.original_url==request_url).first()
-        url_with_domain = f"http://127.0.0.1:8000/{result.short_url}"
-        return {
-            "user_id": result.user_id,
-            "original_url": result.original_url,
-            "short_url": url_with_domain,
-            "count": result.count,
-            "is_active": result.is_active,
-            "expire_time": result.expire_time
-        }
-    except HTTPException:
-        raise HTTPException(status_code=400,detail="something went wrong")
+        db.refresh(query)
+
+        return query
     
+    except Exception as e:
+        raise {"error": str(e)}
+
+
 
 
 @router.get('/get-short-url')
@@ -121,21 +128,3 @@ async def login(db:db_dependency, form_data: OAuth2PasswordRequestForm = Depends
         "refresh_token": create_refresh_token(query.username),
     }
 
-
-
-
-@router.post('/expire')
-async def set_expire_time(db: db_dependency, original_url:str, time_instance: Expire_Time = Body(description="pls write the time u want ur short link been expired"), current_user: models.UserModel = Depends(get_current_user)):
-    expire_time = time_instance.expire_time
-    query = db.query(models.URL).filter(models.URL.user_id==current_user.id,models.URL.original_url==original_url).first()
-    query.expire_time = expire_time
-    db.commit()
-    db.refresh(query)
-    time_now = datetime.now(timezone.utc)
-    expire_time = query.expire_time
-    if expire_time is not None:
-        if expire_time > time_now:
-            query.is_active = True
-            db.commit()
-            db.refresh(query)
-    return query

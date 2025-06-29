@@ -6,23 +6,7 @@ import re
 
 class URL_Create(BaseModel):
     request_url: str
-
-
-class URL_Read(BaseModel):
-    original_url: str
-    short_url: str
-
-
-class User_register(BaseModel):
-    username: str
-    password: str
-    email: str
-
-class User_login(BaseModel):
-    username: str
-    password: str
-    
-class Expire_Time(BaseModel):
+    short_url: Optional[str] = None
     expire_time: datetime
 
     @field_validator('expire_time', mode='before')
@@ -54,7 +38,22 @@ class Expire_Time(BaseModel):
         
         return expire_time
 
+    @field_validator('short_url', mode='before')
+    def validate_shorturl(cls,value):
+        if value == "string" or value == "":
+            return None
+        return value
 
+
+class User_register(BaseModel):
+    username: str
+    password: str
+    email: str
+
+class User_login(BaseModel):
+    username: str
+    password: str
+    
 
 class TokenPayload(BaseModel):
     sub: Optional[str] = None  
